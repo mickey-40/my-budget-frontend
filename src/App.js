@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import Chart from "./components/Chart";
 
 const API_URL = "http://localhost:5001";
 
@@ -13,184 +12,186 @@ function App() {
     description: "",
     date: "",
   });
-  const [filter, setFilter] = useState({ category: "", date: "" });
-  const [darkMode, setDarkMode] = useState(
-    localStorage.getItem("theme") === "dark"
-  );
+  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignup, setIsSignup] = useState(false);
 
+  // 1) Whenever the token changes, set or remove a default Axios header:
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
+    if (token) {
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     } else {
-      document.documentElement.classList.remove("dark");
+      delete axios.defaults.headers.common["Authorization"];
     }
-    localStorage.setItem("theme", darkMode ? "dark" : "light");
-  }, [darkMode]);
+  }, [token]);
 
-  const toggleDarkMode = () => {
-    setDarkMode((prevMode) => !prevMode);
-  };
-
+  // 2) Fetch Transactions (no need to manually add headers now):
   const fetchTransactions = useCallback(async () => {
+    if (!token) return;
     try {
       const response = await axios.get(`${API_URL}/transactions`);
       setTransactions(response.data);
     } catch (error) {
       console.error("❌ Error fetching transactions: ", error);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  const handleSubmit = async (e) => {
+  // Handle User Authentication (Login/Register)
+  const handleAuth = async (e) => {
     e.preventDefault();
-
-    const transactionData = {
-      type: form.type,
-      category: form.category,
-      amount: parseFloat(form.amount), // ✅ Convert amount to a number
-      description: form.description || "", // ✅ Ensure description is a string
-      date: form.date, // ✅ Ensure it's in 'YYYY-MM-DD' format
-    };
-
-    console.log("🚀 Sending transaction:", transactionData);
-
+    const endpoint = isSignup ? "register" : "login";
     try {
-      const response = await axios.post(`${API_URL}/transactions`, transactionData, {
-        headers: { "Content-Type": "application/json" },
+      const response = await axios.post(`${API_URL}/${endpoint}`, {
+        username,
+        password,
       });
 
-      console.log("✅ Transaction added:", response.data);
-      setForm({ type: "expense", category: "", amount: "", description: "", date: "" });
-      fetchTransactions();
+      if (isSignup) {
+        alert("✅ Signup successful! Please log in.");
+        setIsSignup(false);
+      } else {
+        // Store token in localStorage and in state
+        localStorage.setItem("token", response.data.token);
+        setToken(response.data.token);
+      }
     } catch (error) {
-      console.error("❌ Error adding transaction:", error.response?.data || error);
-      alert("Failed to add transaction. Please check your inputs.");
+      console.error("❌ Authentication failed: ", error);
+      alert("Error: " + (error.response?.data.error || "Something went wrong"));
     }
   };
 
-  // ✅ Calculate Total Income, Total Expenses, and Running Balance
-  const totalIncome = transactions
-    .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  // Handle Logout
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    setToken("");
+  };
 
-  const totalExpenses = transactions
-    .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+  // Handle Transaction Submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!token) {
+      alert("Please log in or sign up first.");
+      return;
+    }
+    const transactionData = {
+      type: String(form.type),
+      category: String(form.category),
+      amount: parseFloat(form.amount),
+      description: String(form.description || ""),
+      date: form.date,
+    };
+    console.log("🚀 Sending transaction:", transactionData);
 
-  const balance = totalIncome - totalExpenses;
+    try {
+      // No need to manually add headers anymore; it's in axios defaults
+      const response = await axios.post(`${API_URL}/transactions`, transactionData);
+      console.log("✅ Transaction added:", response.data);
+
+      // Reset the form
+      setForm({
+        type: "expense",
+        category: "",
+        amount: "",
+        description: "",
+        date: "",
+      });
+
+      // Refresh the list of transactions
+      fetchTransactions();
+    } catch (error) {
+      console.error("❌ Error adding transaction:", error.response?.data || error);
+      if (error.response) {
+        alert("❌ Backend Error: " + JSON.stringify(error.response?.data));
+      } else {
+        alert("❌ Network error: Check Flask server.");
+      }
+    }
+  };
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-gray-100 dark:bg-gray-900 p-4">
-      <div className="w-full max-w-lg bg-white dark:bg-gray-800 dark:text-white shadow-lg rounded-lg p-6">
-        
-        {/* Dark Mode Toggle */}
-        <div className="flex justify-between items-center">
-          <h2 className="text-2xl font-bold">💰 Budget Tracker</h2>
-          <button
-            onClick={toggleDarkMode}
-            className="bg-gray-300 dark:bg-gray-700 px-4 py-2 rounded"
-          >
-            {darkMode ? "☀️ Light Mode" : "🌙 Dark Mode"}
-          </button>
-        </div>
+    <div className="min-h-screen flex flex-col items-center p-4">
+      <div className="w-full max-w-lg bg-white shadow-lg rounded-lg p-6">
+        <h2 className="text-2xl font-bold">💰 Budget Tracker</h2>
 
-        {/* ✅ Running Total Section */}
-        <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg shadow-md">
-          <h3 className="text-xl font-bold">💰 Summary</h3>
-          <p className="text-green-500 font-semibold">Total Income: ${totalIncome.toFixed(2)}</p>
-          <p className="text-red-500 font-semibold">Total Expenses: ${totalExpenses.toFixed(2)}</p>
-          <p className={`text-lg font-bold mt-2 ${balance >= 0 ? "text-green-600" : "text-red-600"}`}>
-            Balance: ${balance.toFixed(2)}
-          </p>
-        </div>
-
-        {/* Transaction Form */}
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-          <select
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
-          >
-            <option value="income">Income</option>
-            <option value="expense">Expense</option>
-          </select>
-
-          <input
-            type="text"
-            placeholder="Category"
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-            required
-          />
-
-          <input
-            type="number"
-            placeholder="Amount"
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            value={form.amount}
-            onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            required
-          />
-
-          <input
-            type="date"
-            className="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
-            value={form.date}
-            onChange={(e) => setForm({ ...form, date: e.target.value })}
-            required
-          />
-
-          <button
-            type="submit"
-            className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
-          >
-            Add Transaction
-          </button>
-        </form>
-      {/* Transactions List */}
-      <h3 className="text-xl font-semibold mt-6">Transaction List</h3>
-        {transactions.length === 0 ? (
-          <p className="text-center text-gray-500">No transactions found.</p>
+        {!token ? (
+          <form onSubmit={handleAuth} className="space-y-4">
+            <input
+              type="text"
+              placeholder="Username"
+              onChange={(e) => setUsername(e.target.value)}
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <button type="submit">{isSignup ? "Sign Up" : "Login"}</button>
+            <p onClick={() => setIsSignup(!isSignup)}>
+              {isSignup ? "Already have an account? Log in" : "Don't have an account? Sign up"}
+            </p>
+          </form>
         ) : (
-          <table className="w-full mt-4 border-collapse border border-gray-300 dark:border-gray-700">
-            <thead>
-              <tr className="bg-gray-200 dark:bg-gray-700">
-                <th className="p-2 border border-gray-300 dark:border-gray-700">Type</th>
-                <th className="p-2 border border-gray-300 dark:border-gray-700">Category</th>
-                <th className="p-2 border border-gray-300 dark:border-gray-700">Amount</th>
-                <th className="p-2 border border-gray-300 dark:border-gray-700">Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {transactions.map((t) => (
-                <tr
-                  key={t.id}
-                  className={`${
-                    t.type === "income"
-                      ? "bg-green-100 dark:bg-green-700"
-                      : "bg-red-100 dark:bg-red-700"
-                  }`}
-                >
-                  <td className="p-2 border border-gray-300 dark:border-gray-700">
-                    {t.type}
-                  </td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700">
-                    {t.category}
-                  </td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700">
-                    ${t.amount}
-                  </td>
-                  <td className="p-2 border border-gray-300 dark:border-gray-700">
-                    {t.date}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+              <select
+                value={form.type}
+                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                required
+              >
+                <option value="income">Income</option>
+                <option value="expense">Expense</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Category"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                required
+              />
+              <input
+                type="number"
+                placeholder="Amount"
+                value={form.amount}
+                onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                required
+              />
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                required
+              />
+              <input
+                type="text"
+                placeholder="Description (optional)"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+              />
+              <button type="submit">Add Transaction</button>
+            </form>
+
+            <h2>Your Transactions</h2>
+            {transactions.length === 0 ? (
+              <p>No Transactions Found</p>
+            ) : (
+              <ul>
+                {transactions.map((t) => (
+                  <li key={t.id}>
+                    {t.category} – ${t.amount} ({t.type})
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button onClick={handleLogout}>Logout</button>
+          </>
         )}
       </div>
     </div>
@@ -198,3 +199,5 @@ function App() {
 }
 
 export default App;
+
+
