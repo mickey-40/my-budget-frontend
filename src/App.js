@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
 const API_URL = "http://localhost:5001";
 
@@ -17,7 +18,6 @@ function App() {
   const [password, setPassword] = useState("");
   const [isSignup, setIsSignup] = useState(false);
 
-  // 1) Whenever the token changes, set or remove a default Axios header:
   useEffect(() => {
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
@@ -26,7 +26,6 @@ function App() {
     }
   }, [token]);
 
-  // 2) Fetch Transactions (no need to manually add headers now):
   const fetchTransactions = useCallback(async () => {
     if (!token) return;
     try {
@@ -41,7 +40,6 @@ function App() {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Handle User Authentication (Login/Register)
   const handleAuth = async (e) => {
     e.preventDefault();
     const endpoint = isSignup ? "register" : "login";
@@ -55,7 +53,6 @@ function App() {
         alert("✅ Signup successful! Please log in.");
         setIsSignup(false);
       } else {
-        // Store token in localStorage and in state
         localStorage.setItem("token", response.data.token);
         setToken(response.data.token);
       }
@@ -65,13 +62,11 @@ function App() {
     }
   };
 
-  // Handle Logout
   const handleLogout = () => {
     localStorage.removeItem("token");
     setToken("");
   };
 
-  // Handle Transaction Submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!token) {
@@ -88,11 +83,9 @@ function App() {
     console.log("🚀 Sending transaction:", transactionData);
 
     try {
-      // No need to manually add headers anymore; it's in axios defaults
       const response = await axios.post(`${API_URL}/transactions`, transactionData);
       console.log("✅ Transaction added:", response.data);
 
-      // Reset the form
       setForm({
         type: "expense",
         category: "",
@@ -101,7 +94,6 @@ function App() {
         date: "",
       });
 
-      // Refresh the list of transactions
       fetchTransactions();
     } catch (error) {
       console.error("❌ Error adding transaction:", error.response?.data || error);
@@ -113,10 +105,27 @@ function App() {
     }
   };
 
+  // ✅ Calculate Totals
+  const incomeTotal = transactions
+    .filter((t) => t.type === "income")
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const expenseTotal = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const overallTotal = incomeTotal - expenseTotal; // Final balance
+
+  // Chart Data for Pie Chart
+  const chartData = [
+    { name: "Income", value: incomeTotal, color: "#10B981"},
+    { name: "Expenses", value: expenseTotal, color: "#EF4444"},
+  ]
+
   return (
-    <div className="min-h-screen flex flex-col items-center p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-100 p-6">
       <div className="w-full max-w-lg bg-white shadow-lg rounded-lg p-6">
-        <h2 className="text-2xl font-bold">💰 Budget Tracker</h2>
+        <h2 className="text-2xl font-bold text-gray-700 text-center mb-4">💰 Budget Tracker</h2>
 
         {!token ? (
           <form onSubmit={handleAuth} className="space-y-4">
@@ -125,15 +134,22 @@ function App() {
               placeholder="Username"
               onChange={(e) => setUsername(e.target.value)}
               required
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <input
               type="password"
               placeholder="Password"
               onChange={(e) => setPassword(e.target.value)}
               required
+              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <button type="submit">{isSignup ? "Sign Up" : "Login"}</button>
-            <p onClick={() => setIsSignup(!isSignup)}>
+            <button
+              type="submit"
+              className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition"
+            >
+              {isSignup ? "Sign Up" : "Login"}
+            </button>
+            <p className="text-sm text-center text-gray-500 cursor-pointer" onClick={() => setIsSignup(!isSignup)}>
               {isSignup ? "Already have an account? Log in" : "Don't have an account? Sign up"}
             </p>
           </form>
@@ -144,6 +160,7 @@ function App() {
                 value={form.type}
                 onChange={(e) => setForm({ ...form, type: e.target.value })}
                 required
+                className="w-full px-3 py-2 border rounded-lg"
               >
                 <option value="income">Income</option>
                 <option value="expense">Expense</option>
@@ -154,6 +171,7 @@ function App() {
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
                 required
+                className="w-full px-3 py-2 border rounded-lg"
               />
               <input
                 type="number"
@@ -161,36 +179,66 @@ function App() {
                 value={form.amount}
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
                 required
+                className="w-full px-3 py-2 border rounded-lg"
               />
               <input
                 type="date"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
                 required
+                className="w-full px-3 py-2 border rounded-lg"
               />
-              <input
-                type="text"
-                placeholder="Description (optional)"
-                value={form.description}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-              <button type="submit">Add Transaction</button>
+              <button className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition">
+                Add Transaction
+              </button>
             </form>
 
-            <h2>Your Transactions</h2>
+            {/* 🏆 Display Totals & Chart */}
+            <div className="mt-6 flex items-center justify-between bg-gray-200 p-4 rounded-lg">
+              <div>
+                <p className="text-lg font-semibold">📊 Totals:</p>
+                <p className="text-green-600 font-bold">Income: ${incomeTotal.toFixed(2)}</p>
+                <p className="text-red-600 font-bold">Expenses: ${expenseTotal.toFixed(2)}</p>
+                <p className={`font-bold text-xl ${overallTotal >= 0 ? "text-green-700" : "text-red-700"}`}>
+                  Balance: ${overallTotal.toFixed(2)}
+                </p>
+              </div>
+              <div className="w-24 h-24">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={40}
+                      fill="#8884d8"
+                      dataKey="value"
+                    >
+                    { chartData.map((entry, index) =>(                           <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                    </Pie>
+                    <Tooltip/>
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <h2 className="text-lg font-bold mt-6">Your Transactions</h2>
             {transactions.length === 0 ? (
-              <p>No Transactions Found</p>
+              <p className="text-gray-500 text-center mt-2">No Transactions Found</p>
             ) : (
-              <ul>
+              <ul className="mt-4 space-y-2">
                 {transactions.map((t) => (
-                  <li key={t.id}>
-                    {t.category} – ${t.amount} ({t.type})
+                  <li key={t.id} className="bg-gray-200 p-3 rounded-lg">
+                    {t.category} – <strong>${t.amount}</strong> ({t.type})
                   </li>
                 ))}
               </ul>
             )}
 
-            <button onClick={handleLogout}>Logout</button>
+            <button onClick={handleLogout} className="mt-6 w-full bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition">
+              Logout
+            </button>
           </>
         )}
       </div>
@@ -199,5 +247,6 @@ function App() {
 }
 
 export default App;
+
 
 
