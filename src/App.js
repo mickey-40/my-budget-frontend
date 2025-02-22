@@ -42,26 +42,66 @@ function App() {
   }, [fetchTransactions]);
 
   const handleAuth = async (e) => {
-    e.preventDefault();
-    const endpoint = isSignup ? "register" : "login";
-    try {
-      const response = await axios.post(`${API_URL}/${endpoint}`, {
-        username,
-        password,
-      });
+  e.preventDefault();
+  const endpoint = isSignup ? "register" : "login";
 
-      if (isSignup) {
-        alert("✅ Signup successful! Please log in.");
-        setIsSignup(false);
-      } else {
-        localStorage.setItem("token", response.data.token);
-        setToken(response.data.token);
-      }
-    } catch (error) {
-      console.error("❌ Authentication failed: ", error);
-      alert("Error: " + (error.response?.data.error || "Something went wrong"));
+  try {
+    const response = await axios.post(`${API_URL}/${endpoint}`, { username, password });
+
+    if (isSignup) {
+      alert("✅ Signup successful! Please log in.");
+      setIsSignup(false);
+    } else {
+      // Store access and refresh tokens
+      localStorage.setItem("token", response.data.access_token);
+      localStorage.setItem("refresh_token", response.data.refresh_token);
+      setToken(response.data.access_token);
     }
-  };
+  } catch (error) {
+    console.error("❌ Authentication failed: ", error);
+    alert("Error: " + (error.response?.data.error || "Something went wrong"));
+  }
+};
+
+const refreshAccessToken = useCallback(async () => {
+  const refreshToken = localStorage.getItem("refresh_token");
+  if (!refreshToken) {
+    setToken(null);
+    return;
+  }
+
+  try {
+    const response = await axios.post(`${API_URL}/refresh`, {
+      headers: { Authorization: `Bearer ${refreshToken}` },
+    });
+
+    localStorage.setItem("token", response.data.access_token);
+    setToken(response.data.access_token);
+  } catch (error) {
+    console.error("❌ Refresh token failed", error);
+    handleLogout();
+  }
+}, []); // ✅ Empty dependency array ensures it stays the same function
+
+useEffect(() => {
+  const interval = setInterval(() => {
+    refreshAccessToken();
+  }, 55 * 60 * 1000);
+
+  return () => clearInterval(interval);
+}, [refreshAccessToken]); // ✅ No more warning
+
+
+// Call refresh token if token is expired
+useEffect(() => {
+  const interval = setInterval(() => {
+    refreshAccessToken();
+  }, 55 * 60 * 1000); // Refresh token 5 minutes before expiry
+
+  return () => clearInterval(interval);
+}, [refreshAccessToken]);
+
+
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -89,14 +129,14 @@ function App() {
         await axios.put(`${API_URL}/transactions/${editTransaction.id}`, transactionData, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        alert("✅ Transaction updated successfully!");
+        // alert("✅ Transaction updated successfully!");
         setEditTransaction(null); // Exit edit mode
       } else {
         // CREATE New Transaction (POST request)
         await axios.post(`${API_URL}/transactions`, transactionData, {
           headers: { Authorization: `Bearer ${token}` },
         });
-        alert("✅ Transaction added!");
+        // alert("✅ Transaction added!");
       }
   
       setForm({ type: "expense", category: "", amount: "", description: "", date: "" });
