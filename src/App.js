@@ -55,16 +55,17 @@ function App() {
             alert("✅ Signup successful! Please log in.");
             setIsSignup(false);
         } else {
-            // ✅ Store token and update state
             const newToken = response.data.token;
             localStorage.setItem("token", newToken);
-            setToken(newToken);  // 🔥 React will now re-render immediately
+            setToken(newToken);
+            fetchTransactions();  // ✅ Fetch transactions right after login
         }
     } catch (error) {
         console.error("❌ Authentication failed: ", error);
         alert("Error: " + (error.response?.data.error || "Something went wrong"));
     }
 };
+
 
 
 const refreshAccessToken = useCallback(async () => {
