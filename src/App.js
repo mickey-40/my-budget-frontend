@@ -42,26 +42,30 @@ function App() {
   }, [fetchTransactions]);
 
   const handleAuth = async (e) => {
-  e.preventDefault();
-  const endpoint = isSignup ? "register" : "login";
+    e.preventDefault();
+    const endpoint = isSignup ? "register" : "login";
 
-  try {
-    const response = await axios.post(`${API_URL}/${endpoint}`, { username, password });
+    try {
+        const response = await axios.post(`${API_URL}/${endpoint}`, {
+            username,
+            password,
+        });
 
-    if (isSignup) {
-      alert("✅ Signup successful! Please log in.");
-      setIsSignup(false);
-    } else {
-      // Store access and refresh tokens
-      localStorage.setItem("token", response.data.access_token);
-      localStorage.setItem("refresh_token", response.data.refresh_token);
-      setToken(response.data.access_token);
+        if (isSignup) {
+            alert("✅ Signup successful! Please log in.");
+            setIsSignup(false);
+        } else {
+            // ✅ Store token and update state
+            const newToken = response.data.token;
+            localStorage.setItem("token", newToken);
+            setToken(newToken);  // 🔥 React will now re-render immediately
+        }
+    } catch (error) {
+        console.error("❌ Authentication failed: ", error);
+        alert("Error: " + (error.response?.data.error || "Something went wrong"));
     }
-  } catch (error) {
-    console.error("❌ Authentication failed: ", error);
-    alert("Error: " + (error.response?.data.error || "Something went wrong"));
-  }
 };
+
 
 const refreshAccessToken = useCallback(async () => {
   const refreshToken = localStorage.getItem("refresh_token");
@@ -111,41 +115,38 @@ useEffect(() => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!token) {
-      alert("Please log in first.");
-      return;
+        alert("Please log in first.");
+        return;
     }
-  
+
     const transactionData = {
-      type: String(form.type),
-      category: String(form.category),
-      amount: parseFloat(form.amount),
-      description: String(form.description || ""),
-      date: form.date,
+        type: String(form.type),
+        category: String(form.category),
+        amount: parseFloat(form.amount),
+        description: String(form.description || ""),
+        date: form.date,
     };
-  
+
+    console.log("🚀 Sending transaction:", transactionData);
+    console.log("🛠️ Token being sent:", token);  // Debug the token
+
     try {
-      if (editTransaction) {
-        // UPDATE Transaction (PUT request)
-        await axios.put(`${API_URL}/transactions/${editTransaction.id}`, transactionData, {
-          headers: { Authorization: `Bearer ${token}` },
+        const response = await axios.post(`${API_URL}/transactions`, transactionData, {
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,  // 🔥 Ensure "Bearer " is included
+            },
         });
-        // alert("✅ Transaction updated successfully!");
-        setEditTransaction(null); // Exit edit mode
-      } else {
-        // CREATE New Transaction (POST request)
-        await axios.post(`${API_URL}/transactions`, transactionData, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        // alert("✅ Transaction added!");
-      }
-  
-      setForm({ type: "expense", category: "", amount: "", description: "", date: "" });
-      fetchTransactions(); // Refresh transactions after update/add
+
+        console.log("✅ Transaction added:", response.data);
+        setForm({ type: "expense", category: "", amount: "", description: "", date: "" });
+        fetchTransactions();
     } catch (error) {
-      console.error("❌ Error saving transaction:", error.response?.data || error);
-      alert("❌ Error saving transaction. Try again.");
+        console.error("❌ Error saving transaction:", error.response?.data || error);
+        alert("❌ Error: " + JSON.stringify(error.response?.data));
     }
-  };
+};
+
   
 
   // Delete Transaction
