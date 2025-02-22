@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-const API_URL = "http://localhost:5001";
+const API_URL = "https://my-budget-backend-k33i.onrender.com";
 
 function App() {
   const [transactions, setTransactions] = useState([]);
