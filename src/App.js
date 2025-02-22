@@ -17,6 +17,7 @@ function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSignup, setIsSignup] = useState(false);
+  const [editTransaction, setEditTransaction]= useState(null);
 
   useEffect(() => {
     if (token) {
@@ -70,9 +71,10 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!token) {
-      alert("Please log in or sign up first.");
+      alert("Please log in first.");
       return;
     }
+  
     const transactionData = {
       type: String(form.type),
       category: String(form.category),
@@ -80,30 +82,63 @@ function App() {
       description: String(form.description || ""),
       date: form.date,
     };
-    console.log("🚀 Sending transaction:", transactionData);
-
+  
     try {
-      const response = await axios.post(`${API_URL}/transactions`, transactionData);
-      console.log("✅ Transaction added:", response.data);
-
-      setForm({
-        type: "expense",
-        category: "",
-        amount: "",
-        description: "",
-        date: "",
-      });
-
-      fetchTransactions();
-    } catch (error) {
-      console.error("❌ Error adding transaction:", error.response?.data || error);
-      if (error.response) {
-        alert("❌ Backend Error: " + JSON.stringify(error.response?.data));
+      if (editTransaction) {
+        // UPDATE Transaction (PUT request)
+        await axios.put(`${API_URL}/transactions/${editTransaction.id}`, transactionData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        alert("✅ Transaction updated successfully!");
+        setEditTransaction(null); // Exit edit mode
       } else {
-        alert("❌ Network error: Check Flask server.");
+        // CREATE New Transaction (POST request)
+        await axios.post(`${API_URL}/transactions`, transactionData, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        alert("✅ Transaction added!");
       }
+  
+      setForm({ type: "expense", category: "", amount: "", description: "", date: "" });
+      fetchTransactions(); // Refresh transactions after update/add
+    } catch (error) {
+      console.error("❌ Error saving transaction:", error.response?.data || error);
+      alert("❌ Error saving transaction. Try again.");
     }
   };
+  
+
+  // Delete Transaction
+  const deleteTransaction = async (id) => {
+    if (!token) return alert("Please log in first.");
+  
+    const confirmDelete = window.confirm("Are you sure you want to delete this transaction?");
+    if (!confirmDelete) return;
+  
+    try {
+      await axios.delete(`${API_URL}/transactions/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Refresh transactions after deletion
+      fetchTransactions();
+    } catch (error) {
+      console.error("❌ Error deleting transaction:", error.response?.data || error);
+      alert("❌ Error deleting transaction. Try again.");
+    }
+  };
+
+  // Edit Transaction
+  const handleEditClick = (transaction) => {
+    setEditTransaction(transaction);
+    setForm({
+      type: transaction.type,
+      category: transaction.category,
+      amount: transaction.amount,
+      description: transaction.description,
+      date: transaction.date,
+    });
+  };
+  
 
   // ✅ Calculate Totals
   const incomeTotal = transactions
@@ -188,8 +223,15 @@ function App() {
                 required
                 className="w-full px-3 py-2 border rounded-lg"
               />
+              <input
+                type="description"
+                placeholder="Description"
+                value={form.description}
+                onChange={(e) => setForm({ ...form, description: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              />
               <button className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition">
-                Add Transaction
+                {editTransaction ? "Update Transaction" : "Add Transaction"}
               </button>
             </form>
 
@@ -229,8 +271,24 @@ function App() {
             ) : (
               <ul className="mt-4 space-y-2">
                 {transactions.map((t) => (
-                  <li key={t.id} className="bg-gray-200 p-3 rounded-lg">
-                    {t.category} – <strong>${t.amount}</strong> ({t.type})
+                  <li key={t.id} className="bg-gray-200 p-3 rounded-lg flex justify-between items-center">
+                    <span>
+                      {t.category} – <strong>${t.amount}</strong> ({t.type})
+                    </span>
+                    <div>
+                      <button
+                        onClick={() => handleEditClick(t)}
+                        className="bg-yellow-500 text-white px-2 py-1 rounded-md hover:bg-yellow-600 transition mr-2"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => deleteTransaction(t.id)}
+                        className="bg-red-500 text-white px-2 py-1 rounded-md hover:bg-red-600 transition"
+                      >
+                        🗑️
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
