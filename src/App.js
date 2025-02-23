@@ -115,6 +115,7 @@ useEffect(() => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!token) {
         alert("Please log in first.");
         return;
@@ -128,25 +129,39 @@ useEffect(() => {
         date: form.date,
     };
 
-    console.log("🚀 Sending transaction:", transactionData);
-    console.log("🛠️ Token being sent:", token);  // Debug the token
-
     try {
-        const response = await axios.post(`${API_URL}/transactions`, transactionData, {
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,  // 🔥 Ensure "Bearer " is included
-            },
-        });
+        let response;
 
-        console.log("✅ Transaction added:", response.data);
+        if (editTransaction) {
+            // ✅ If an edit is in progress, send a PUT request
+            console.log("🛠️ Editing transaction:", editTransaction.id);
+            response = await axios.put(`${API_URL}/transactions/${editTransaction.id}`, transactionData, {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+        } else {
+            // ✅ Otherwise, create a new transaction
+            console.log("🚀 Creating new transaction");
+            response = await axios.post(`${API_URL}/transactions`, transactionData, {
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+        }
+
+        console.log("✅ Transaction saved:", response.data);
         setForm({ type: "expense", category: "", amount: "", description: "", date: "" });
-        fetchTransactions();
+        setEditTransaction(null);  // ✅ Reset edit mode after saving
+        fetchTransactions();  // ✅ Refresh the transaction list
     } catch (error) {
         console.error("❌ Error saving transaction:", error.response?.data || error);
         alert("❌ Error: " + JSON.stringify(error.response?.data));
     }
 };
+
 
   
 
